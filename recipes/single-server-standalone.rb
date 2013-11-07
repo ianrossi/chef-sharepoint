@@ -6,13 +6,10 @@ remote_file download_to do
   source download_url
 end
 
-# mount the image as a drive. Powershell doesn't appear to let us define a
-# drive letter, so I'm throwing it back to chef via an env var. super hacky!
+# Save the drive letter to a file
 powershell "mount SPS image" do
   code <<-EOH
-  $mountResult = Mount-DiskImage -PassThru -ImagePath "#{download_to}"
-  $driveLetter = ($mountResult | Get-Volume).DriveLetter
-  [Environment]::SetEnvironmentVariable("SPS_Mount", $driveLetter, "User")
+  (Mount-DiskImage -PassThru -ImagePath "#{download_to}" | Get-Volume).DriveLetter | Out-File "#{Chef::Config[:file_cache_path]}/sp_img_driveletter.txt"
   EOH
 end
 
@@ -25,14 +22,16 @@ end
 # run the prereq installer. not sure, but this might need to restart things.
 # if it does, then obviously it'll break the connection. silly windows.
 windows_package "sharepoint preparation" do
-  source "#{ENV['SPS_Mount']}:/prerequisiteinstaller.exe"
+  source "E:/prerequisiteinstaller.exe"
+  installer_type :custom
   action :install
   options "/unattended"
 end
 
 # install sharepoint
 windows_package "sharepoint" do
-  source "#{ENV['SPS_Mount']}:/setup.exe"
+  source "E:/setup.exe"
+  installer_type :custom
   action :install
   options "/config C:/Windows/Temp/sharepoint-config.xml"
 end
